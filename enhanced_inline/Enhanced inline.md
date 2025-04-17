@@ -1,7 +1,7 @@
-# Proposal: Enhanced `inline` Keyword with Configurable Inlining Levels
+# P3676R0: Enhanced `inline` Keyword with Configurable Inlining Levels
 
 **Author:** Stephen Berry, Khalil Estell
-**Date:** 2025-4-4
+**Date:** 2025-4-17
 **Audience:** C++ Standards Committee
 
 ## Introduction
