@@ -1,6 +1,6 @@
 # Proposal: Enhanced `inline` Keyword with Configurable Inlining Levels
 
-**Author:** Stephen Berry
+**Author:** Stephen Berry, Khalil Estell
 **Date:** 2025-4-4
 **Audience:** C++ Standards Committee
 
@@ -15,15 +15,6 @@ This proposal aims to enhance the `inline` keyword to accept a parameter that co
 - `inline(2)` would strongly indicate "always inline" – instructing the compiler to inline the function whenever possible.
 
 To improve clarity and self-documentation of code, the C++ standard library can introduce named integers (e.g., `std::noinline`, `std::normal_inline`, and `std::always_inline`) so that developers can write `inline(std::always_inline)` instead of raw integers. However, raw integers work well with template meta-programming.
-
-## Motivation
-
-1. **Portability and Standardization:** Current solutions rely on non-standard attributes. By providing a standardized set of inlining modes through the `inline` keyword, code becomes more portable and less reliant on compiler-specific extensions.
-2. **Explicit Control Over Inlining:** Developers who require guaranteed inlining for performance-critical sections can use `inline(2)`, while those who want to prevent inlining can use `inline(0)`. This provides developers with direct control and removes guesswork and reliance on the compiler’s heuristics.
-3. **Compile-Time Configuration:** By allowing a `constexpr` integral value for the inlining mode, developers can conditionally choose inlining behavior at compile time without resorting to macros or multiple function definitions. Libraries that depend upon template meta-programming currently have no way to conditionally enable `noinline` or `always_inline` attributes.
-4. **Consistency and Familiarity:** The existing `inline` keyword’s behavior remains intact and behaves the same with `inline(1)`. With `inline(0)` and `inline(2)`, we simply extend the existing concept in a manner akin to how `noexcept` can take a boolean. The extension is intuitive, backward compatible, and uses established language features.
-
-Macros cannot be exported with C++20 modules. This poses a serious issue with always inline declarations, because there is no cross-platform solution without macros. Hence, it is more difficult and requires more ugly code to write performant C++20 modules.
 
 ## Examples
 
@@ -62,6 +53,15 @@ inline(std::noinline) int slow_function(int x) {
     return complex_calculation(x);
 }
 ```
+
+## Motivation
+
+1. **Portability and Standardization:** Current solutions rely on non-standard attributes. By providing a standardized set of inlining modes through the `inline` keyword, code becomes more portable and less reliant on compiler-specific extensions.
+2. **Explicit Control Over Inlining:** Developers who require guaranteed inlining for performance-critical sections can use `inline(2)`, while those who want to prevent inlining can use `inline(0)`. This provides developers with direct control and removes guesswork and reliance on the compiler’s heuristics.
+3. **Compile-Time Configuration:** By allowing a `constexpr` integral value for the inlining mode, developers can conditionally choose inlining behavior at compile time without resorting to macros or multiple function definitions. Libraries that depend upon template meta-programming currently have no way to conditionally enable `noinline` or `always_inline` attributes.
+4. **Consistency and Familiarity:** The existing `inline` keyword’s behavior remains intact and behaves the same with `inline(1)`. With `inline(0)` and `inline(2)`, we simply extend the existing concept in a manner akin to how `noexcept` can take a boolean. The extension is intuitive, backward compatible, and uses established language features.
+
+Macros cannot be exported with C++20 modules. This poses a serious issue with always inline declarations, because there is no cross-platform solution without macros. Hence, it is more difficult and requires more ugly code to write performant C++20 modules.
 
 ## Motivating Library Development Experience
 
@@ -122,17 +122,17 @@ inline(std::always_inline) int add(int a, int b) {
 
 ### Semantics
 
-1. **`inline(2)` (Always Inline):** The compiler is instructed to inline the function at every call site where possible. If it cannot inline the function (due to technical limitations like recursion, address-taking, or linker constraints), the compiler should be encouraged to emit a diagnostic. This behavior provides a strong guarantee, similar to non-standard `__forceinline` or `__attribute__((always_inline))`.
+1. **`inline(0)` (No Inline):** This mode requests the compiler not to inline the function, effectively negating any other inlining requests. It aligns with some compilers’ `noinline` attributes. The compiler can still decide to inline if mandated by other rules (unlikely in practice), but this mode strongly suggests that no inlining should occur.
 
-2. **`inline(0)` (No Inline):** This mode requests the compiler not to inline the function, effectively negating any other inlining requests. It aligns with some compilers’ `noinline` attributes. The compiler can still decide to inline if mandated by other rules (unlikely in practice), but this mode strongly suggests that no inlining should occur.
+2. **`inline(1)` (Normal Inline):** This remains unchanged from the current meaning of `inline` – a suggestion (not a demand) to the compiler that inlining may be beneficial.
 
-3. **`inline(1)` (Normal Inline):** This remains unchanged from the current meaning of `inline` – a suggestion (not a demand) to the compiler that inlining may be beneficial.
+3. **`inline(2)` (Always Inline):** The compiler is instructed to inline the function at every call site where possible. If it cannot inline the function (due to technical limitations like recursion, address-taking, or linker constraints), the compiler should be encouraged to emit a diagnostic. This behavior is similar to non-standard `__forceinline` or `__attribute__((always_inline))`.
 
 4. **Compile-Time Toggling:** Much like `noexcept(expr)`, we can write:
 
    ```c++
    constexpr int mode = 2;
-   
+
    inline(mode) int critical_function(int x, int y) {
        return x * y;
    }
@@ -158,15 +158,15 @@ If a function specified as `inline(2)` cannot be inlined, compilers are encourag
 
 ## Consideration of inline for Linkage
 
-The `inline` keyward is used for linkage control to avoid ODR violations. In these header scenarios `inline(0)` should behave in the same terms of linkage as the current `inline`. ODR violations should be prevented, but the compiler should take this as a request to call the function and not insert (inline) the code.
+The `inline` keyword is used for linkage control to avoid ODR violations. If In these header scenarios `inline(0)` should behave in the same terms of linkage as the current `inline`. ODR violations should be prevented, but the compiler should take this as a request to call the function and not insert (inline) the code at the call site.
 
 ## Global inline Variables
 
 Global inline variables must also respect the inline arguments.
 
 ```c++
-// A request to direclty embed the table rather than access via a memory lookup
-inline(2) constexpr std::array<int8_t, 4> table{ 5, 6, 7, 8 }; 
+// A request to directly embed the table rather than access via a memory lookup
+inline(2) constexpr std::array<int8_t, 4> table{ 5, 6, 7, 8 };
 ```
 
 A global lambda's inline arguments must apply to the `operator()()` call.
